@@ -361,5 +361,5 @@ function getToolGroupSummary(messages: ClineMessage[]): string {
 		parts.push(`performed ${counts.search} search${counts.search > 1 ? "es" : ""}`)
 	}
 
-	return parts.length === 0 ? "Context" : "Cline" + action + parts.join(", ")
+	return parts.length === 0 ? "Context" : action.trim() + " " + parts.join(", ")
 }

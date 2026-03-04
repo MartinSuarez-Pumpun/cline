@@ -29,7 +29,7 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 				<LogoComponent className="size-20" environment={environment} />
 			</div>
 			<div className="text-center flex items-center justify-center px-4">
-				<h1 className="m-0 font-bold">What can I do for you?</h1>
+				<h1 className="m-0 font-bold">How can I help?</h1>
 			</div>
 			{shouldShowQuickWins && (
 				<div className="mt-4">
@@ -38,7 +38,7 @@ const HomeHeader = ({ shouldShowQuickWins = false }: HomeHeaderProps) => {
 						onClick={handleTakeATour}
 						type="button">
 						Take a Tour
-						<span className="codicon codicon-play scale-90"></span>
+						<span className="codicon codicon-play scale-90" />
 					</button>
 				</div>
 			)}
