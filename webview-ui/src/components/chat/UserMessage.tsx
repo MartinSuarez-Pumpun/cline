@@ -89,12 +89,13 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 
 	return (
 		<div
-			className="p-2.5 pr-1 my-1 text-badge-foreground rounded-xs"
+			className="p-2.5 pr-1 my-1 text-badge-foreground rounded-lg"
 			onClick={handleClick}
 			style={{
 				backgroundColor: isEditing ? "unset" : "var(--vscode-badge-background)",
 				whiteSpace: "pre-line",
 				wordWrap: "break-word",
+				borderLeft: isEditing ? "none" : "3px solid #00C8A0",
 			}}>
 			{isEditing ? (
 				<>
@@ -110,7 +111,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 							color: "var(--vscode-input-foreground)",
 							borderColor: "var(--vscode-input-border)",
 							border: "1px solid",
-							borderRadius: "2px",
+							borderRadius: "8px",
 							padding: "6px",
 							fontFamily: "inherit",
 							fontSize: "inherit",
@@ -183,8 +184,8 @@ const RestoreButton = forwardRef<HTMLButtonElement, RestoreButtonProps>(({ type,
 					? "var(--vscode-button-foreground)"
 					: "var(--vscode-button-secondaryForeground, var(--vscode-foreground))",
 				border: "none",
-				padding: "4px 8px",
-				borderRadius: "2px",
+				padding: "4px 10px",
+				borderRadius: "6px",
 				fontSize: "9px",
 				cursor: "pointer",
 			}}
