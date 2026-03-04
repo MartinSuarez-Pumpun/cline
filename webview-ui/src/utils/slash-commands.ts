@@ -1,8 +1,14 @@
 import type { McpServer } from "@shared/mcp"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
-import { BASE_SLASH_COMMANDS, type SlashCommand, VSCODE_ONLY_COMMANDS } from "../../../src/shared/slashCommands.ts"
+import {
+	BASE_SLASH_COMMANDS,
+	type PromptCommandInfo,
+	type SlashCommand,
+	VSCODE_ONLY_COMMANDS,
+} from "../../../src/shared/slashCommands.ts"
 
 export type { SlashCommand }
+export type { PromptCommandInfo }
 
 export const DEFAULT_SLASH_COMMANDS: SlashCommand[] =
 	PLATFORM_CONFIG.type === PlatformType.VSCODE ? [...BASE_SLASH_COMMANDS, ...VSCODE_ONLY_COMMANDS] : BASE_SLASH_COMMANDS
@@ -94,6 +100,18 @@ export function getMcpPromptCommands(mcpServers: McpServer[] = []): SlashCommand
 	return commands
 }
 
+/**
+ * Gets slash commands from custom .cline/prompts/ prompt files.
+ * These are discovered by the backend and sent as PromptCommandInfo[].
+ */
+export function getPromptSlashCommands(promptCommands: PromptCommandInfo[] = []): SlashCommand[] {
+	return promptCommands.map((prompt) => ({
+		name: prompt.name,
+		description: prompt.description || `Custom prompt (${prompt.source})`,
+		section: "prompt" as const,
+	}))
+}
+
 // Regex for detecting slash commands in text
 // Must be at start of string OR preceded by whitespace to avoid matching URLs/paths
 // e.g., matches "/newtask" or "text /newtask" but not "http://example.com/newtask"
@@ -181,6 +199,7 @@ export function getMatchingSlashCommands(
 	remoteWorkflowToggles?: Record<string, boolean>,
 	remoteWorkflows?: any[],
 	mcpServers: McpServer[] = [],
+	promptCommands: PromptCommandInfo[] = [],
 ): SlashCommand[] {
 	const workflowCommands = getWorkflowCommands(
 		localWorkflowToggles,
@@ -189,7 +208,8 @@ export function getMatchingSlashCommands(
 		remoteWorkflows,
 	)
 	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
-	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands, ...mcpPromptCommands]
+	const promptSlashCommands = getPromptSlashCommands(promptCommands)
+	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...promptSlashCommands, ...workflowCommands, ...mcpPromptCommands]
 
 	if (!query) {
 		return allCommands
@@ -233,6 +253,7 @@ export function validateSlashCommand(
 	remoteWorkflowToggles?: Record<string, boolean>,
 	remoteWorkflows?: any[],
 	mcpServers: McpServer[] = [],
+	promptCommands: PromptCommandInfo[] = [],
 ): "full" | "partial" | null {
 	if (!command) {
 		return null
@@ -245,7 +266,8 @@ export function validateSlashCommand(
 		remoteWorkflows,
 	)
 	const mcpPromptCommands = getMcpPromptCommands(mcpServers)
-	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...workflowCommands, ...mcpPromptCommands]
+	const promptSlashCommands = getPromptSlashCommands(promptCommands)
+	const allCommands = [...DEFAULT_SLASH_COMMANDS, ...promptSlashCommands, ...workflowCommands, ...mcpPromptCommands]
 
 	// case insensitive matching
 	const exactMatch = allCommands.some((cmd) => cmd.name.toLowerCase() === command.toLowerCase())

@@ -1,8 +1,25 @@
 export interface SlashCommand {
 	name: string
 	description?: string
-	section?: "default" | "custom" | "mcp"
+	section?: "default" | "custom" | "mcp" | "prompt"
 	cliCompatible?: boolean
+}
+
+/**
+ * Metadata for a .prompt.md file discovered in .cline/prompts/
+ * Sent from backend to webview so the menu can show descriptions.
+ */
+export interface PromptCommandInfo {
+	/** Command name derived from filename (without .prompt.md extension) */
+	name: string
+	/** Description from YAML frontmatter */
+	description?: string
+	/** Skills referenced in YAML frontmatter */
+	skills?: string[]
+	/** Source: project (.cline/prompts/) or global (~/.cline/prompts/) */
+	source: "project" | "global"
+	/** Full path to the .prompt.md file */
+	filePath: string
 }
 
 export const BASE_SLASH_COMMANDS: SlashCommand[] = [

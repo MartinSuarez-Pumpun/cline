@@ -19,6 +19,7 @@ import {
 	getLocalWindsurfRules,
 	refreshExternalRulesToggles,
 } from "@core/context/instructions/user-instructions/external-rules"
+import { discoverPrompts } from "@core/context/instructions/user-instructions/prompts"
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
@@ -3117,6 +3118,9 @@ export class Task {
 		const cwd = this.cwd
 		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, cwd)
 
+		// Discover custom prompt commands from .cline/prompts/
+		const promptCommands = await discoverPrompts(cwd)
+
 		const hasUserContentTag = (text: string): boolean => {
 			return USER_CONTENT_TAGS.some((tag) => text.includes(tag))
 		}
@@ -3148,6 +3152,8 @@ export class Task {
 				useNativeToolCalls,
 				providerInfo,
 				mcpPromptFetcher,
+				promptCommands,
+				cwd,
 			)
 
 			if (needsCheck) {

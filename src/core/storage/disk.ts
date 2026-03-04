@@ -57,6 +57,7 @@ export const GlobalFileNames = {
 	workflows: ".clinerules/workflows",
 	hooksDir: ".clinerules/hooks",
 	clineruleSkillsDir: ".clinerules/skills",
+	clinePromptsDir: ".cline/prompts",
 	clineSkillsDir: ".cline/skills",
 	claudeSkillsDir: ".claude/skills",
 	agentsSkillsDir: ".agents/skills",
@@ -217,6 +218,44 @@ export function getSkillsDirectoriesForScan(cwd: string): SkillsScanDirectory[] 
 
 export async function ensureSettingsDirectoryExists(): Promise<string> {
 	return getGlobalStorageDir("settings")
+}
+
+export type PromptsScanDirectory = {
+	path: string
+	source: "project" | "global"
+}
+
+/**
+ * Returns the global prompts directory path (~/.cline/prompts) without creating it.
+ */
+function getClinePromptsDirectoryPath(): string {
+	return path.join(getClineHomePath(), "prompts")
+}
+
+/**
+ * Ensures the global prompts directory exists (~/.cline/prompts).
+ */
+export async function ensurePromptsDirectoryExists(options: { isGlobal: boolean; workspacePath?: string }): Promise<string> {
+	const promptsDir = options.isGlobal
+		? getClinePromptsDirectoryPath()
+		: path.join(options.workspacePath ?? "", GlobalFileNames.clinePromptsDir)
+	try {
+		await fs.mkdir(promptsDir, { recursive: true })
+	} catch (_error) {
+		return promptsDir
+	}
+	return promptsDir
+}
+
+/**
+ * Returns the list of prompts directories to scan without creating them.
+ * Order is project directory first, then global directory.
+ */
+export function getPromptsDirectoriesForScan(cwd: string): PromptsScanDirectory[] {
+	return [
+		{ path: path.join(cwd, GlobalFileNames.clinePromptsDir), source: "project" },
+		{ path: getClinePromptsDirectoryPath(), source: "global" },
+	]
 }
 
 /**

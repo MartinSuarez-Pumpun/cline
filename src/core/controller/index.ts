@@ -41,6 +41,7 @@ import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { getLatestAnnouncementId } from "@/utils/announcements"
 import { getCwd, getDesktopDir } from "@/utils/path"
+import { discoverPrompts } from "../context/instructions/user-instructions/prompts"
 import { PromptRegistry } from "../prompts/system-prompt"
 import {
 	ensureCacheDirectoryExists,
@@ -918,6 +919,10 @@ export class Controller {
 		const { openAiCodexOAuthManager } = await import("@/integrations/openai-codex/oauth")
 		const openAiCodexIsAuthenticated = await openAiCodexOAuthManager.isAuthenticated()
 
+		// Discover custom prompt commands from .cline/prompts/
+		const promptCwd = this.workspaceManager?.getPrimaryRoot()?.path || (await getCwd(getDesktopDir()))
+		const promptCommands = await discoverPrompts(promptCwd)
+
 		return {
 			version,
 			apiConfiguration,
@@ -950,6 +955,7 @@ export class Controller {
 			localAgentsRulesToggles: localAgentsRulesToggles || {},
 			localWorkflowToggles: workflowToggles || {},
 			globalWorkflowToggles: globalWorkflowToggles || {},
+			promptCommands,
 			globalSkillsToggles: globalSkillsToggles || {},
 			localSkillsToggles: localSkillsToggles || {},
 			remoteRulesToggles: remoteRulesToggles,

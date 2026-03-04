@@ -1,10 +1,13 @@
 import type { ApiProviderInfo } from "@core/api"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { McpPromptResponse } from "@shared/mcp"
+import type { PromptCommandInfo } from "@shared/slashCommands"
 import fs from "fs/promises"
 import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { isNativeToolCallingConfig } from "@/utils/model-utils"
+import { getPromptContent } from "../context/instructions/user-instructions/prompts"
+import { getSkillContent } from "../context/instructions/user-instructions/skills"
 import {
 	condenseToolResponse,
 	deepPlanningToolResponse,
@@ -48,6 +51,8 @@ export async function parseSlashCommands(
 	enableNativeToolCalls?: boolean,
 	providerInfo?: ApiProviderInfo,
 	mcpPromptFetcher?: McpPromptFetcher,
+	promptCommands?: PromptCommandInfo[],
+	cwd?: string,
 ): Promise<{ processedText: string; needsClinerulesFileCheck: boolean }> {
 	const SUPPORTED_DEFAULT_COMMANDS = ["newtask", "smol", "compact", "newrule", "reportbug", "deep-planning", "explain-changes"]
 
@@ -169,6 +174,48 @@ export async function parseSlashCommands(
 						Logger.debug(`MCP prompt not found: ${commandName} (server: ${serverName}, prompt: ${promptName})`)
 					} catch (error) {
 						Logger.error(`Error fetching MCP prompt ${commandName}: ${error}`)
+					}
+				}
+			}
+
+			// Check for custom prompt commands from .cline/prompts/
+			if (promptCommands && promptCommands.length > 0) {
+				const matchingPrompt = promptCommands.find((p) => p.name === commandName)
+				if (matchingPrompt) {
+					try {
+						const promptBody = await getPromptContent(matchingPrompt)
+						if (promptBody) {
+							// If the prompt references skills, resolve and inline them
+							let skillsContent = ""
+							if (matchingPrompt.skills && matchingPrompt.skills.length > 0 && cwd) {
+								const { discoverSkills, getAvailableSkills } = await import(
+									"../context/instructions/user-instructions/skills"
+								)
+								const allSkills = await discoverSkills(cwd)
+								const availableSkills = getAvailableSkills(allSkills)
+
+								for (const skillName of matchingPrompt.skills) {
+									const skill = await getSkillContent(skillName, availableSkills)
+									if (skill) {
+										skillsContent += `\n<skill name="${skill.name}">\n${skill.instructions}\n</skill>\n`
+									} else {
+										Logger.warn(`Prompt "${commandName}" references skill "${skillName}" which was not found`)
+									}
+								}
+							}
+
+							const textWithoutSlashCommand = removeSlashCommand(text, tagContent, contentStartIndex, slashMatch)
+							const processedText =
+								`<explicit_instructions type="prompt:${commandName}">\n${promptBody}${skillsContent}\n</explicit_instructions>\n` +
+								textWithoutSlashCommand
+
+							// Track telemetry for custom prompt usage
+							telemetryService.captureSlashCommandUsed(ulid, commandName, "prompt")
+
+							return { processedText, needsClinerulesFileCheck: false }
+						}
+					} catch (error) {
+						Logger.error(`Error reading prompt file for "${commandName}": ${error}`)
 					}
 				}
 			}

@@ -14,6 +14,7 @@ import { HistoryItem } from "./HistoryItem"
 import { McpDisplayMode } from "./McpDisplayMode"
 import { ClineMessageModelInfo } from "./messages"
 import { OnboardingModelGroup } from "./proto/cline/state"
+import { PromptCommandInfo } from "./slashCommands"
 import { Mode } from "./storage/types"
 import { TelemetrySetting } from "./TelemetrySetting"
 import { UserInfo } from "./UserInfo"
@@ -75,6 +76,7 @@ export interface ExtensionState {
 	localClineRulesToggles: ClineRulesToggles
 	localWorkflowToggles: ClineRulesToggles
 	globalWorkflowToggles: ClineRulesToggles
+	promptCommands?: PromptCommandInfo[]
 	localCursorRulesToggles: ClineRulesToggles
 	localWindsurfRulesToggles: ClineRulesToggles
 	remoteRulesToggles?: ClineRulesToggles

@@ -1,8 +1,9 @@
 import type { McpServer } from "@shared/mcp"
-import type { SlashCommand } from "@/utils/slash-commands"
+import type { PromptCommandInfo } from "@shared/slashCommands"
 import React, { useCallback, useEffect, useRef } from "react"
 import ScreenReaderAnnounce from "@/components/common/ScreenReaderAnnounce"
 import { useMenuAnnouncement } from "@/hooks/useMenuAnnouncement"
+import type { SlashCommand } from "@/utils/slash-commands"
 import { getMatchingSlashCommands } from "@/utils/slash-commands"
 
 interface SlashCommandMenuProps {
@@ -16,6 +17,7 @@ interface SlashCommandMenuProps {
 	remoteWorkflowToggles?: Record<string, boolean>
 	remoteWorkflows?: any[]
 	mcpServers?: McpServer[]
+	promptCommands?: PromptCommandInfo[]
 }
 
 const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
@@ -29,6 +31,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 	remoteWorkflowToggles,
 	remoteWorkflows,
 	mcpServers = [],
+	promptCommands = [],
 }) => {
 	const menuRef = useRef<HTMLDivElement>(null)
 
@@ -40,8 +43,10 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 		remoteWorkflowToggles,
 		remoteWorkflows,
 		mcpServers,
+		promptCommands,
 	)
 	const defaultCommands = filteredCommands.filter((cmd) => cmd.section === "default" || !cmd.section)
+	const promptCmds = filteredCommands.filter((cmd) => cmd.section === "prompt")
 	const workflowCommands = filteredCommands.filter((cmd) => cmd.section === "custom")
 	const mcpCommands = filteredCommands.filter((cmd) => cmd.section === "mcp")
 
@@ -139,11 +144,17 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 				{filteredCommands.length > 0 ? (
 					<>
 						{renderCommandSection(defaultCommands, "Default Commands", 0, true)}
-						{renderCommandSection(workflowCommands, "Workflow Commands", defaultCommands.length, false)}
+						{renderCommandSection(promptCmds, "Custom Prompts", defaultCommands.length, true)}
+						{renderCommandSection(
+							workflowCommands,
+							"Workflow Commands",
+							defaultCommands.length + promptCmds.length,
+							false,
+						)}
 						{renderCommandSection(
 							mcpCommands,
 							"MCP Prompts",
-							defaultCommands.length + workflowCommands.length,
+							defaultCommands.length + promptCmds.length + workflowCommands.length,
 							true,
 						)}
 					</>

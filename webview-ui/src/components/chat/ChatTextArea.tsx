@@ -223,6 +223,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			remoteConfigSettings,
 			navigateToSettingsModelPicker,
 			mcpServers,
+			promptCommands,
 		} = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -479,6 +480,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								remoteWorkflowToggles,
 								remoteConfigSettings?.remoteGlobalWorkflows,
 								mcpServers,
+								promptCommands,
 							)
 
 							if (allCommands.length === 0) {
@@ -504,6 +506,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							remoteWorkflowToggles,
 							remoteConfigSettings?.remoteGlobalWorkflows,
 							mcpServers,
+							promptCommands,
 						)
 						if (commands.length > 0) {
 							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
@@ -962,6 +965,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					globalWorkflowToggles,
 					remoteWorkflowToggles,
 					remoteConfigSettings?.remoteGlobalWorkflows,
+					mcpServers,
+					promptCommands,
 				)
 
 				if (isValidCommand) {
@@ -1368,6 +1373,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								mcpServers={mcpServers}
 								onMouseDown={handleMenuMouseDown}
 								onSelect={handleSlashCommandsSelect}
+								promptCommands={promptCommands}
 								query={slashCommandsQuery}
 								remoteWorkflows={remoteConfigSettings?.remoteGlobalWorkflows}
 								remoteWorkflowToggles={remoteWorkflowToggles}
