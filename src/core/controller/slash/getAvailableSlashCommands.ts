@@ -1,6 +1,8 @@
+import { discoverPrompts } from "@core/context/instructions/user-instructions/prompts"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { SlashCommandInfo, SlashCommandsResponse } from "@shared/proto/cline/slash"
 import { BASE_SLASH_COMMANDS } from "@/shared/slashCommands"
+import { getCwd, getDesktopDir } from "@/utils/path"
 import { Controller } from ".."
 
 /**
@@ -17,6 +19,20 @@ export async function getAvailableSlashCommands(controller: Controller, _request
 				description: cmd.description,
 				section: "default",
 				cliCompatible: cmd.cliCompatible,
+			}),
+		)
+	}
+
+	// Add custom prompt commands from .cline/prompts/
+	const promptCwd = await getCwd(getDesktopDir())
+	const promptCommands = await discoverPrompts(promptCwd)
+	for (const prompt of promptCommands) {
+		commands.push(
+			SlashCommandInfo.create({
+				name: prompt.name,
+				description: prompt.description || `Custom prompt (${prompt.source})`,
+				section: "prompt",
+				cliCompatible: true,
 			}),
 		)
 	}

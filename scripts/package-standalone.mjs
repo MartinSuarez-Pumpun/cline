@@ -2,21 +2,54 @@
 
 import archiver from "archiver"
 import { execSync } from "child_process"
-import fs from "fs"
+import fs, { createWriteStream } from "fs"
 import { cp } from "fs/promises"
+import fsExtra from "fs-extra"
 import { glob } from "glob"
+import https from "https"
 import minimatch from "minimatch"
 import os from "os"
 import path from "path"
+import { pipeline } from "stream/promises"
+import * as tar from "tar"
 import { rmrf } from "./file-utils.mjs"
+
+const NODE_DIST_BASE = "https://nodejs.org/dist"
+
+// This should match the node version packaged with the JetBrains plugin.
+const TARGET_NODE_VERSION = "22.15.0"
+
+const TARGET_NODE_BINARIES = {
+	"win-x64": {
+		url: `${NODE_DIST_BASE}/v${TARGET_NODE_VERSION}/win-x64/node.exe`,
+		file: "node.exe",
+		extract: false,
+	},
+	"darwin-x64": {
+		url: `${NODE_DIST_BASE}/v${TARGET_NODE_VERSION}/node-v${TARGET_NODE_VERSION}-darwin-x64.tar.gz`,
+		file: "node",
+		extract: true,
+		extractPath: `node-v${TARGET_NODE_VERSION}-darwin-x64/bin/node`,
+	},
+	"darwin-arm64": {
+		url: `${NODE_DIST_BASE}/v${TARGET_NODE_VERSION}/node-v${TARGET_NODE_VERSION}-darwin-arm64.tar.gz`,
+		file: "node",
+		extract: true,
+		extractPath: `node-v${TARGET_NODE_VERSION}-darwin-arm64/bin/node`,
+	},
+	"linux-x64": {
+		url: `${NODE_DIST_BASE}/v${TARGET_NODE_VERSION}/node-v${TARGET_NODE_VERSION}-linux-x64.tar.gz`,
+		file: "node",
+		extract: true,
+		extractPath: `node-v${TARGET_NODE_VERSION}-linux-x64/bin/node`,
+	},
+}
 
 const BUILD_DIR = "dist-standalone"
 const BINARIES_DIR = `${BUILD_DIR}/binaries`
 const RUNTIME_DEPS_DIR = "standalone/runtime-files"
 const IS_DEBUG_BUILD = process.env.IS_DEBUG_BUILD === "true"
 
-// This should match the node version packaged with the JetBrains plugin.
-const TARGET_NODE_VERSION = "22.15.0"
 const TARGET_PLATFORMS = [
 	{ platform: "win32", arch: "x64", targetDir: "win-x64" },
 	{ platform: "darwin", arch: "x64", targetDir: "darwin-x64" },
@@ -28,14 +61,81 @@ const SUPPORTED_BINARY_MODULES = ["better-sqlite3"]
 const UNIVERSAL_BUILD = !process.argv.includes("-s")
 const IS_VERBOSE = process.argv.includes("-v") || process.argv.includes("--verbose")
 
+async function downloadNodeBinaries() {
+	console.log(`Downloading Node.js v${TARGET_NODE_VERSION} for all platforms...`)
+	for (const { targetDir } of TARGET_PLATFORMS) {
+		const { url, file, extract, extractPath } = TARGET_NODE_BINARIES[targetDir]
+		const destDir = path.join(BINARIES_DIR, targetDir)
+		const destFile = path.join(destDir, file)
+		fs.mkdirSync(destDir, { recursive: true })
+
+		if (fs.existsSync(destFile)) {
+			console.log(`  ${targetDir}: already exists, skipping`)
+			continue
+		}
+
+		console.log(`  ${targetDir}: downloading ${url}`)
+
+		if (!extract) {
+			await downloadFile(url, destFile)
+		} else {
+			const tmpTar = path.join(destDir, "_node.tar.gz")
+			await downloadFile(url, tmpTar)
+			console.log(`  ${targetDir}: extracting...`)
+			await tar.extract({
+				file: tmpTar,
+				cwd: destDir,
+				filter: (p) => p === extractPath,
+				strip: extractPath.split("/").length - 1,
+			})
+			fs.renameSync(path.join(destDir, path.basename(extractPath)), destFile)
+			fs.rmSync(tmpTar)
+		}
+
+		if (file === "node") fs.chmodSync(destFile, 0o755)
+		console.log(`  ${targetDir}: done`)
+	}
+}
+
+async function downloadFile(url, dest) {
+	await new Promise((resolve, reject) => {
+		const follow = (u) =>
+			https
+				.get(u, (res) => {
+					if (res.statusCode === 301 || res.statusCode === 302) {
+						follow(res.headers.location)
+					} else if (res.statusCode !== 200) {
+						reject(new Error(`HTTP ${res.statusCode} for ${u}`))
+					} else {
+						pipeline(res, createWriteStream(dest)).then(resolve).catch(reject)
+					}
+				})
+				.on("error", reject)
+		follow(url)
+	})
+}
+
+async function copyWebviewBuild() {
+	const src = path.resolve("webview-ui/build")
+	const dest = path.join(BUILD_DIR, "extension/webview-ui/build")
+	if (!fs.existsSync(src)) {
+		throw new Error(`webview-ui/build no existe. Ejecuta: cd webview-ui && npm run build`)
+	}
+	fsExtra.copySync(src, dest)
+	console.log("✅ Copiado webview-ui/build a standalone/extension/webview-ui/build")
+}
+
 async function main() {
 	await installNodeDependencies()
 	if (UNIVERSAL_BUILD) {
 		console.log("Building universal package for all platforms...")
+		await downloadNodeBinaries() // ← añadir
 		await packageAllBinaryDeps()
 	} else {
 		console.log(`Building package for ${os.platform()}-${os.arch()}...`)
+		await downloadNodeBinaries() // ← añadir
 	}
+	await copyWebviewBuild()
 	await zipDistribution()
 }
 
@@ -106,46 +206,41 @@ async function packageAllBinaryDeps() {
 }
 
 async function zipDistribution() {
-	// Zip the build directory (excluding any pre-existing output zip).
-	const zipPath = path.join(BUILD_DIR, "standalone.zip")
+	// Zip per-platform
+	for (const { targetDir } of TARGET_PLATFORMS) {
+		const zipPath = path.join(BUILD_DIR, `standalone-${targetDir}.zip`)
+		await createZip(zipPath, targetDir)
+	}
+}
+
+async function createZip(zipPath, platformDir) {
 	const output = fs.createWriteStream(zipPath)
 	const startTime = Date.now()
 	const archive = archiver("zip", { zlib: { level: 6 } })
 
-	output.on("close", () => {
-		const endTime = Date.now()
-		const duration = (endTime - startTime) / 1000
-		console.log(`Created ${zipPath} (${(archive.pointer() / 1024 / 1024).toFixed(1)} MB) in ${duration.toFixed(2)} seconds`)
-	})
-	archive.on("warning", (err) => {
-		console.warn(`Warning: ${err}`)
-	})
-	archive.on("error", (err) => {
-		throw err
-	})
+	await new Promise((resolve, reject) => {
+		output.on("close", () => {
+			const duration = ((Date.now() - startTime) / 1000).toFixed(2)
+			console.log(`Created ${zipPath} (${(archive.pointer() / 1024 / 1024).toFixed(1)} MB) in ${duration}s`)
+			resolve()
+		})
+		archive.on("error", reject)
+		archive.pipe(output)
 
-	archive.pipe(output)
-	// Add all the files from the standalone build dir.
-	archive.glob("**/*", {
-		cwd: BUILD_DIR,
-		ignore: ["standalone.zip"],
-	})
+		// Archivos base (sin binaries/)
+		archive.glob("**/*", {
+			cwd: BUILD_DIR,
+			ignore: ["standalone-*.zip", "binaries/**"],
+		})
 
-	// Exclude the same files as the VCE vscode extension packager.
-	// Also ignore the dist directory, the build directory for the extension.
-	const isIgnored = createIsIgnored(["dist/**"])
-
-	// Add the whole cline directory under "extension", except the for the ignored files.
-	archive.directory(process.cwd(), "extension", (entry) => {
-		if (isIgnored(entry.name)) {
-			//log_verbose("Ignoring", entry.name)
-			return false
+		// Solo los binaries de esta plataforma
+		const platformBinaries = path.join(BINARIES_DIR, platformDir)
+		if (fs.existsSync(platformBinaries)) {
+			archive.directory(platformBinaries, `binaries/${platformDir}`)
 		}
-		return entry
-	})
 
-	console.log("Zipping package...")
-	await archive.finalize()
+		archive.finalize()
+	})
 }
 
 /**
